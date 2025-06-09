@@ -1,0 +1,81 @@
+// Modelo de Datos para el Dataset OULAD
+// https://dbdiagram.io/ para visualizar este modelo
+
+Table courses {
+  code_module varchar(20) [pk]
+  code_presentation varchar(20) [pk]
+  module_presentation_length int [not null, note: 'Duración en días']
+}
+
+Table studentInfo {
+  id_student int [pk, note: 'Identificador único del estudiante']
+  gender char(1)
+  region varchar(255)
+  highest_education varchar(255)
+  imd_band varchar(50) [null]
+  age_band varchar(50)
+  num_of_prev_attempts int [not null]
+  studied_credits int [not null]
+  disability char(1) [not null]
+  final_result varchar(50) [not null]
+}
+
+Table studentRegistration {
+  id_student int [pk]
+  code_module varchar(20) [pk]
+  code_presentation varchar(20) [pk]
+  date_registration int [note: 'Días relativos al inicio. Negativo es antes.']
+  date_unregistration int [null, note: 'Días relativos al inicio.']
+}
+
+Table assessments {
+  id_assessment int [pk]
+  code_module varchar(20) [not null]
+  code_presentation varchar(20) [not null]
+  assessment_type varchar(10)
+  date int [null]
+  weight decimal(5,2) [not null, note: 'Ponderación como porcentaje']
+}
+
+Table studentAssessment {
+  id_assessment int [pk]
+  id_student int [pk]
+  date_submitted int [not null]
+  is_banked tinyint [not null, note: '0 = No, 1 = Si']
+  score int [null]
+}
+
+Table vle {
+  id_site int [pk]
+  code_module varchar(20) [not null]
+  code_presentation varchar(20) [not null]
+  activity_type varchar(50)
+  week_from int [null]
+  week_to int [null]
+}
+
+Table studentVle {
+  id_interaction int [pk, increment]
+  id_student int [not null]
+  id_site int [not null]
+  date int [not null]
+  sum_click int [not null]
+  // Las columnas code_module y code_presentation se omiten para evitar redundancia.
+  // Se pueden obtener a través de la relación con la tabla 'vle'.
+}
+
+
+// --- DEFINICIÓN DE RELACIONES (Llaves Foráneas) ---
+
+Ref: studentRegistration.(code_module, code_presentation) > courses.(code_module, code_presentation)
+Ref: studentRegistration.id_student > studentInfo.id_student
+
+Ref: assessments.(code_module, code_presentation) > courses.(code_module, code_presentation)
+
+Ref: studentAssessment.id_assessment > assessments.id_assessment
+Ref: studentAssessment.id_student > studentInfo.id_student
+
+Ref: vle.(code_module, code_presentation) > courses.(code_module, code_presentation)
+
+Ref: studentVle.id_student > studentInfo.id_student
+Ref: studentVle.id_site > vle.id_site
