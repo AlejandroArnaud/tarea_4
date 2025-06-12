@@ -1,117 +1,88 @@
-# Análisis de la Estructura del Dataset OULAD para MySQL
+# Análisis y Diseño del Esquema de Base de Datos y Proceso ETL para el Dataset OULAD
 
-Este documento detalla el diseño del esquema de la base de datos para el dataset OULAD, optimizado para MySQL. Se analizan las tablas, se definen los tipos de datos, y se establecen las llaves primarias y foráneas para garantizar la integridad referencial.
+## 1. Introducción
 
-## Consideraciones Generales
+Este documento detalla el análisis, diseño e implementación del modelo de datos y del proceso de Extracción, Transformación y Carga (ETL) para el dataset de Analíticas de Aprendizaje de la Open University (OULAD). El objetivo es construir una base de datos robusta, íntegra y optimizada para el análisis exploratorio de datos (EDA) y la modelización predictiva.
 
-1.  **Valores Nulos (`?`)**: En varios archivos, el carácter `?` se utiliza para representar datos faltantes. En el esquema de la base de datos, estos campos se definirán como `NULL` para manejar la ausencia de datos de manera estándar.
-2.  **Fechas como Enteros**: Las columnas de fecha (`date`, `date_registration`, `date_unregistration`, `date_submitted`) no son fechas calendario, sino números enteros que representan el número de días transcurridos desde el inicio del módulo/presentación. Por lo tanto, se utilizará el tipo de dato `INT`.
-3.  **Llaves Compuestas**: Varias tablas no tienen un único identificador, sino que su unicidad depende de la combinación de varias columnas. Estas se implementarán como llaves primarias compuestas.
+El diseño se basa en el esquema oficial del dataset, complementado con un análisis de las reglas de negocio implícitas en la descripción de los datos para crear un pipeline de ingesta de datos inteligente y resiliente.
 
----
+## 2. Descripción Detallada del Dataset
 
-## Análisis por Tabla
+A continuación, se presenta el contenido y la descripción de cada uno de los archivos que componen el dataset OULAD.
 
-### 1. `courses` (Cursos)
+### 2.1. `courses.csv`
+Contiene la lista de todos los módulos disponibles y sus presentaciones.
+- **`code_module`**: Código identificador del módulo.
+- **`code_presentation`**: Código de la presentación (semestre), compuesto por el año y una letra ('B' para inicio en febrero, 'J' para inicio en octubre).
+- **`length`**: Duración de la presentación del módulo en días.
 
-Tabla maestra que define cada presentación de un módulo.
+### 2.2. `assessments.csv`
+Contiene información sobre las evaluaciones dentro de cada presentación de módulo.
+- **`id_assessment`**: Número de identificación de la evaluación.
+- **`assessment_type`**: Tipo de evaluación: TMA (Tutor Marked Assessment), CMA (Computer Marked Assessment) y Exam (Examen Final).
+- **`date`**: Fecha de entrega final de la evaluación, calculada como el número de días desde el inicio de la presentación.
+- **`weight`**: Ponderación de la evaluación en porcentaje.
 
--   **Columnas:**
-    -   `code_module` (VARCHAR(20)): Identificador del módulo (ej. 'AAA').
-    -   `code_presentation` (VARCHAR(20)): Identificador de la presentación (ej. '2013J').
-    -   `module_presentation_length` (INT): Duración de la presentación en días.
--   **Llave Primaria (PK):** Compuesta por `(code_module, code_presentation)`. Esta combinación identifica de manera única cada curso impartido en un semestre específico.
+### 2.3. `vle.csv`
+Contiene información sobre los materiales disponibles en el Entorno Virtual de Aprendizaje (VLE).
+- **`id_site`**: Número de identificación del material.
+- **`activity_type`**: El rol asociado con el material del módulo.
+- **`week_from` / `week_to`**: Rango de semanas en las que el material está planificado para ser utilizado.
 
-### 2. `studentInfo` (Información del Estudiante)
+### 2.4. `studentInfo.csv`
+Contiene información demográfica de los estudiantes junto con sus resultados finales.
+- **`id_student`**: Número de identificación único del estudiante.
+- **`gender`**: Género del estudiante.
+- **`region`**: Región geográfica donde vivía el estudiante.
+- **`highest_education`**: Nivel educativo más alto del estudiante al ingresar a la presentación del módulo.
+- **`imd_band`**: Banda del Índice de Múltiple Privación del lugar de residencia del estudiante.
+- **`age_band`**: Rango de edad del estudiante.
+- **`num_of_prev_attempts`**: El número de veces que el estudiante ha intentado este módulo.
+- **`studied_credits`**: El número total de créditos que el estudiante está cursando actualmente.
+- **`disability`**: Indica si el estudiante ha declarado una discapacidad.
+- **`final_result`**: Resultado final del estudiante en la presentación del módulo.
 
-Contiene la información demográfica de cada estudiante.
+### 2.5. `studentRegistration.csv`
+Contiene información sobre el momento en que el estudiante se registró en la presentación del módulo.
+- **`date_registration`**: Fecha de registro, medida en días relativos al inicio de la presentación (valores negativos indican registro anticipado).
+- **`date_unregistration`**: Fecha de baja. Los estudiantes que completaron el curso tienen este campo vacío.
 
--   **Columnas:**
-    -   `id_student` (INT): Identificador único para cada estudiante.
-    -   `gender` (CHAR(1)): Género del estudiante ('M' o 'F').
-    -   `region` (VARCHAR(255)): Región del estudiante.
-    -   `highest_education` (VARCHAR(255)): Nivel educativo más alto.
-    -   `imd_band` (VARCHAR(50)): Banda del Índice de Múltiple Privación (puede ser `NULL`).
-    -   `age_band` (VARCHAR(50)): Rango de edad.
-    -   `num_of_prev_attempts` (INT): Número de intentos previos en otros módulos.
-    -   `studied_credits` (INT): Créditos estudiados por el estudiante.
-    -   `disability` (CHAR(1)): Indica si el estudiante tiene una discapacidad ('Y' o 'N').
-    -   `final_result` (VARCHAR(50)): Resultado final del estudiante en la presentación.
--   **Llave Primaria (PK):** `id_student`.
+### 2.6. `studentAssessment.csv`
+Contiene los resultados de las evaluaciones de los estudiantes.
+- **`date_submitted`**: Fecha de entrega, medida en días desde el inicio de la presentación.
+- **`is_banked`**: Indicador de que el resultado de la evaluación ha sido transferido de una presentación anterior.
+- **`score`**: Puntuación del estudiante en la evaluación (rango 0-100).
 
-*Nota: Las columnas `code_module` y `code_presentation` aparecen en el snippet `studentInfo.csv` pero conceptualmente pertenecen a la tabla de registro (`studentRegistration`). Las mantendremos separadas para un mejor diseño normalizado.*
+### 2.7. `studentVle.csv`
+Contiene información sobre las interacciones de cada estudiante con los materiales en el VLE.
+- **`id_site`**: Número de identificación del material del VLE.
+- **`date`**: Fecha de la interacción del estudiante.
+- **`sum_click`**: Número de veces que un estudiante interactúa con el material en ese día.
 
-### 3. `assessments` (Evaluaciones)
+## 3. Diseño del Esquema de la Base de Datos
 
-Define cada evaluación dentro de una presentación de un módulo.
+### 3.1. Paradigma del Modelo: Instantánea de Datos (Snapshot Model)
+El esquema implementado se basa en un modelo de "instantánea", dictado por la estructura del archivo `studentInfo.csv`. En este modelo, la tabla `studentInfo` no representa una entidad única de estudiante, sino la "fotografía" de sus datos demográficos y de rendimiento en el momento de una inscripción específica. Este diseño, aunque introduce redundancia, está optimizado para el análisis al mantener el contexto completo de cada registro.
 
--   **Columnas:**
-    -   `id_assessment` (INT): Identificador único de la evaluación.
-    -   `code_module` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `code_presentation` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `assessment_type` (VARCHAR(10)): Tipo de evaluación (ej. 'TMA', 'Exam').
-    -   `date` (INT): Fecha de la evaluación en días desde el inicio (puede ser `NULL`).
-    -   `weight` (DECIMAL(5, 2)): Ponderación de la evaluación sobre la nota final (ej. 10.00, 20.00).
--   **Llave Primaria (PK):** `id_assessment`.
--   **Llave Foránea (FK):** `(code_module, code_presentation)` referencia a `courses(code_module, code_presentation)`.
+### 3.2. Estructura de Tablas
+La estructura de tablas se adhiere al diagrama oficial, con una mejora clave en la tabla `studentVle` y la adición de un campo de dominio en `studentAssessment`.
 
-### 4. `vle` (Entorno Virtual de Aprendizaje)
+- **`courses`**: PK `(code_module, code_presentation)`
+- **`studentInfo`**: PK `(id_student, code_module, code_presentation)`; FK a `courses`.
+- **`studentRegistration`**: PK `(id_student, code_module, code_presentation)`; FK a `studentInfo`.
+- **`assessments`**: PK `id_assessment`; FK a `courses`.
+- **`vle`**: PK `id_site`; FK a `courses`.
+- **`studentAssessment`**: PK `(id_assessment, id_student)`; FK a `assessments`. Contiene una columna adicional `assessment_result` para el dominio 'Pass'/'Fail'.
+- **`studentVle`**: PK `id_interaction` (llave subrogada auto-incremental); FK a `studentRegistration` y `vle`.
 
-Contiene la información sobre los materiales disponibles en el Entorno Virtual de Aprendizaje (VLE).
+## 4. Conclusiones del Análisis de Diseño y ETL
 
--   **Columnas:**
-    -   `id_site` (INT): Identificador único del material/sitio en el VLE.
-    -   `code_module` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `code_presentation` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `activity_type` (VARCHAR(50)): Tipo de actividad (ej. 'resource', 'oucontent').
-    -   `week_from` (INT): Semana de inicio de disponibilidad (puede ser `NULL`).
-    -   `week_to` (INT): Semana de fin de disponibilidad (puede ser `NULL`).
--   **Llave Primaria (PK):** `id_site`.
--   **Llave Foránea (FK):** `(code_module, code_presentation)` referencia a `courses(code_module, code_presentation)`.
+El análisis detallado de la descripción de los datos reveló reglas de negocio críticas que deben ser manejadas durante el proceso ETL para garantizar la calidad y completitud de los datos.
 
-### 5. `studentRegistration` (Registro de Estudiantes)
+1.  **Imputación de Datos Guiada por Reglas:** La descripción de `assessments.csv` especifica que si la fecha de un examen final (`Exam`) es nula, esta debe corresponder al final de la presentación del curso. El proceso ETL debe implementar esta lógica, utilizando la `length` de la tabla `courses` para imputar estos valores faltantes, enriqueciendo así la completitud de los datos.
 
-Tabla de unión que vincula a un estudiante con una presentación de módulo específica.
+2.  **Creación de Campos de Dominio:** La regla de que una puntuación (`score`) inferior a 40 se interpreta como 'Fail' en `studentAssessment.csv` es una oportunidad para la creación de un campo de dominio. Se ha añadido una columna `assessment_result` a la tabla `studentAssessment`, que será poblada durante el ETL. Esto pre-procesa los datos y facilita análisis posteriores directamente desde la base de datos.
 
--   **Columnas:**
-    -   `id_student` (INT): FK que referencia a `studentInfo`.
-    -   `code_module` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `code_presentation` (VARCHAR(20)): FK que referencia a `courses`.
-    -   `date_registration` (INT): Fecha de registro en días (un valor negativo significa antes del inicio).
-    -   `date_unregistration` (INT): Fecha de baja en días (puede ser `NULL`).
--   **Llave Primaria (PK):** Compuesta por `(id_student, code_module, code_presentation)`.
--   **Llaves Foráneas (FK):**
-    -   `id_student` referencia a `studentInfo(id_student)`.
-    -   `(code_module, code_presentation)` referencia a `courses(code_module, code_presentation)`.
+3.  **Necesidad de Llaves Subrogadas:** La tabla `studentVle` carece de una llave primaria natural y única, ya que un estudiante puede interactuar con el mismo recurso múltiples veces. Para normalizar y asegurar la unicidad de cada registro de interacción, se ha introducido una llave primaria subrogada auto-incremental (`id_interaction`).
 
-### 6. `studentAssessment` (Evaluaciones de Estudiantes)
-
-Tabla de unión que almacena los resultados de las evaluaciones para cada estudiante.
-
--   **Columnas:**
-    -   `id_assessment` (INT): FK que referencia a `assessments`.
-    -   `id_student` (INT): FK que referencia a `studentInfo`.
-    -   `date_submitted` (INT): Fecha de entrega de la evaluación.
-    -   `is_banked` (TINYINT): Bandera que indica si la nota fue transferida de un intento previo (0 o 1).
-    -   `score` (INT): Puntuación obtenida por el estudiante (puede ser `NULL`).
--   **Llave Primaria (PK):** Compuesta por `(id_assessment, id_student)`.
--   **Llaves Foráneas (FK):**
-    -   `id_assessment` referencia a `assessments(id_assessment)`.
-    -   `id_student` referencia a `studentInfo(id_student)`.
-
-### 7. `studentVle` (Interacción del Estudiante con el VLE)
-
-Registra las interacciones (clics) de un estudiante con los materiales del VLE.
-
--   **Columnas:**
-    -   **`id_interaction` (INT AUTO_INCREMENT):** Se añade una llave primaria subrogada (artificial) porque no hay una combinación de columnas que garantice la unicidad (un estudiante puede hacer clic en el mismo sitio varias veces el mismo día).
-    -   `id_student` (INT): FK que referencia a `studentInfo`.
-    -   `id_site` (INT): FK que referencia a `vle`.
-    -   `code_module` (VARCHAR(20)): Dato presente en el CSV, redundante si se une con `vle`.
-    -   `code_presentation` (VARCHAR(20)): Dato presente en el CSV, redundante si se une con `vle`.
-    -   `date` (INT): Fecha de la interacción en días.
-    -   `sum_click` (INT): Número de clics en esa interacción.
--   **Llave Primaria (PK):** `id_interaction`.
--   **Llaves Foráneas (FK):**
-    -   `id_student` referencia a `studentInfo(id_student)`.
-    -   `id_site` referencia a `vle(id_site)`.
+4.  **Confirmación del Modelo de Instantánea:** La presencia de `code_module` y `code_presentation` en `studentInfo.csv` confirma que cada fila representa una inscripción, no un estudiante. El diseño de la base de datos y el ETL deben respetar esta estructura para preservar la integridad contextual de los datos.
